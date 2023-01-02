@@ -27,10 +27,12 @@ int pause_state;
 int next_state;
 int states[6] = {like_state, recomm_state, playlist_state, prev_state, pause_state, next_state};
 
+
 int volume;
+int filtered_reading;
 unsigned long time_now=0;
 unsigned long time_now1=0;
-
+unsigned long previousMillis=0;
 
 // Generic In Out with 16 bytes report (max)
 uint8_t const desc_hid_report[] =
@@ -91,15 +93,34 @@ void loop()
   u8g2.setFont(u8g2_font_logisoso28_tr);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
   u8g2.drawStr(8,29,"SPOTIFY");	// write something to the internal memory
   u8g2.sendBuffer();
-  	
+if (millis()<=300){
+  previousMillis=0;
+  time_now=0;
+  time_now1=0;
+}  	
 //reads potentiometer
-if(millis()>= time_now+20){
-  time_now+=20;
-  volume=analogRead(volume_pot);
+if(millis() - time_now >= 20){
+  time_now=millis();
   previous_msg[6]=msg[6];
-  msg[6]=volume/4;
+  int raw_reading=analogRead(volume_pot);
+//low-pass filter 
+  float  filter_constant=0.5;
+  filtered_reading = filtered_reading * (1 - filter_constant) + raw_reading * filter_constant;
+  volume = filtered_reading;  
+  msg[6]=100-((volume-1)*100/1015);
   }
-Serial.println(msg[0]);  
+if (msg[6]!=previous_msg[6]){
+previous_msg[7]=msg[7];
+msg[7]=1;
+}
+else if (msg[6]==previous_msg[6]){
+previous_msg[7]=msg[7];
+msg[7]=0;
+}
+
+
+
+
 
 //checks value of buttons and sends report, sending report also has 100ms cooldown
 //like
@@ -111,8 +132,8 @@ for (int i=0; i<=5;i++){
 
 
 //sends report
-if ((millis()>=time_now1+50)&&(msg[0]!=previous_msg[0])||(msg[1]!=previous_msg[1])||(msg[2]!=previous_msg[2])||(msg[3]!=previous_msg[3])||(msg[4]!=previous_msg[4])||(msg[5]!=previous_msg[5])||(msg[6]!=previous_msg[6])){
-  time_now1+=50;
+if ((millis()-time_now1>=50)&&(msg[0]!=previous_msg[0])||(msg[1]!=previous_msg[1])||(msg[2]!=previous_msg[2])||(msg[3]!=previous_msg[3])||(msg[4]!=previous_msg[4])||(msg[5]!=previous_msg[5])||(msg[7]!=previous_msg[7])){
+  time_now1=millis();
   usb_hid.sendReport(0, msg, msgsize);
   
   }
@@ -165,6 +186,6 @@ void set_report_callback(uint8_t report_id, hid_report_type_t report_type, uint8
   Serial.print(" ");
  }
   // echo back anything we received from host
-  usb_hid.sendReport(0, buffer, bufsize);
+  usb_hid.sendReport(0, msg, msgsize);
 }
 
