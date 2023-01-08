@@ -3,12 +3,12 @@
 #include <U8g2lib.h>
 #include <SPI.h>
 #include <Wire.h>
-
+#include <string.h>
 
 //size of message
-uint8_t msg[8];
-uint8_t previous_msg[8];
-#define msgsize 8
+uint8_t msg[64];
+uint8_t previous_msg[64];
+#define msgsize 64
 
 //pin define
 #define like_btn D1
@@ -33,11 +33,17 @@ int filtered_reading;
 unsigned long time_now=0;
 unsigned long time_now1=0;
 unsigned long previousMillis=0;
+char artists[64]="";
+char song[64]="";
+float scroll_x = 0;
+float scroll_y = 0;
+int screen_width=128;
+
 
 // Generic In Out with 16 bytes report (max)
 uint8_t const desc_hid_report[] =
 {
-  TUD_HID_REPORT_DESC_GENERIC_INOUT(8)
+  TUD_HID_REPORT_DESC_GENERIC_INOUT(64)
 };
 
 
@@ -89,15 +95,54 @@ msg[i]=0;
 
 void loop()
 {
+char prev_artists[64];
+char prev_song[64];
+strcpy(prev_artists, artists);
+strcpy(prev_song, song);
+
   u8g2.clearBuffer();					// clear the internal memory
-  u8g2.setFont(u8g2_font_logisoso28_tr);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
-  u8g2.drawStr(8,29,"SPOTIFY");	// write something to the internal memory
+  u8g2.setFont(u8g2_font_fub14_tf);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall u8g2_font_tenthinnerguys_tr(8px)
+  int song_lenght=u8g2.getStrWidth(song);
+  u8g2.drawStr((int)scroll_y,14,song);    
+  u8g2.setFont(u8g2_font_fub11_tf);
+  int artists_lenght=u8g2.getStrWidth(artists);	  
+  u8g2.drawStr((int)scroll_x,29,artists);
   u8g2.sendBuffer();
+
+  scroll_x-=0.5;
+  scroll_y-=0.5;
+  //for new song it will reset position of text to 0
+  if (strcmp(prev_artists, artists)||strcmp(prev_song, song)) {
+    scroll_x = 0;
+    scroll_y = 0;
+  }
+
+  //  for scroll of text artists
+  if ((int)scroll_x==0-(artists_lenght-1)){
+  scroll_x=screen_width;
+  }
+
+  else if(artists_lenght-1<screen_width){
+  scroll_x=0;
+  } 
+
+//for scroll of text song  
+  if ((int)scroll_y==0-(song_lenght-1)){
+  scroll_y=screen_width;
+  }
+
+  else if(song_lenght-1<screen_width){
+  scroll_y=0;
+  } 
+
+
+//for when millis overlaps, so there is no problems 
 if (millis()<=300){
   previousMillis=0;
   time_now=0;
   time_now1=0;
 }  	
+
 //reads potentiometer
 if(millis() - time_now >= 20){
   time_now=millis();
@@ -177,15 +222,35 @@ uint16_t get_report_callback (uint8_t report_id, hid_report_type_t report_type, 
 void set_report_callback(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // This example doesn't use multiple report and report ID
-  (void) report_id;
+  report_id=buffer[0];
   (void) report_type;
 
 
   for (int i=0; i<bufsize;i++){
   Serial.print(buffer[i]); 
   Serial.print(" ");
- }
-  // echo back anything we received from host
+  }
+
+  Serial.println("");
+
+if (report_id==50){
+  String artist_str(buffer+1,bufsize-1);
+  char artist_name[artist_str.length() + 1];
+  artist_str.toCharArray(artist_name, sizeof(artist_name));
+  strcpy(artists, artist_name);
+  Serial.println(artist_name);
+  }
+else if(report_id==51){
+  String song_str(buffer+1,bufsize-1);
+  char song_name[song_str.length() + 1];
+  song_str.toCharArray(song_name, sizeof(song_name));
+  strcpy(song, song_name);
+  Serial.println(song_name);
+  
+}
+  
+else if(report_id==49){
   usb_hid.sendReport(0, msg, msgsize);
+}
 }
 
