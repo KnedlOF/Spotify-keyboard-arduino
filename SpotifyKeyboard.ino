@@ -32,13 +32,14 @@ int volume;
 int filtered_reading;
 unsigned long time_now=0;
 unsigned long time_now1=0;
+unsigned long time_now2=0;
 unsigned long previousMillis=0;
 char artists[64]="";
 char song[64]="";
+char notification[64]="";
 float scroll_x = 0;
 float scroll_y = 0;
 int screen_width=128;
-
 
 // Generic In Out with 16 bytes report (max)
 uint8_t const desc_hid_report[] =
@@ -107,6 +108,21 @@ strcpy(prev_song, song);
   u8g2.setFont(u8g2_font_fub11_tf);
   int artists_lenght=u8g2.getStrWidth(artists);	  
   u8g2.drawStr((int)scroll_x,29,artists);
+
+//notification will pop up for 2.5 seconds  
+  if (strlen(notification)>0){  
+    u8g2.clearBuffer();   
+    u8g2.setFont(u8g2_font_fub14_tf); 
+    u8g2.drawStr(10,14, notification);
+    
+    
+    if(millis() - time_now2 >= 2500){
+      strcpy(notification,"");
+      u8g2.clearBuffer(); 
+    }
+
+    }
+    
   u8g2.sendBuffer();
 
   scroll_x-=0.5;
@@ -141,6 +157,7 @@ if (millis()<=300){
   previousMillis=0;
   time_now=0;
   time_now1=0;
+  time_now2=0;
 }  	
 
 //reads potentiometer
@@ -148,6 +165,7 @@ if(millis() - time_now >= 20){
   time_now=millis();
   previous_msg[6]=msg[6];
   int raw_reading=analogRead(volume_pot);
+  
 //low-pass filter 
   float  filter_constant=0.5;
   filtered_reading = filtered_reading * (1 - filter_constant) + raw_reading * filter_constant;
@@ -232,7 +250,7 @@ void set_report_callback(uint8_t report_id, hid_report_type_t report_type, uint8
   }
 
   Serial.println("");
-
+//reports with id 2 are artists names
 if (report_id==50){
   String artist_str(buffer+1,bufsize-1);
   char artist_name[artist_str.length() + 1];
@@ -240,6 +258,7 @@ if (report_id==50){
   strcpy(artists, artist_name);
   Serial.println(artist_name);
   }
+//reports with id 3 are track names
 else if(report_id==51){
   String song_str(buffer+1,bufsize-1);
   char song_name[song_str.length() + 1];
@@ -248,7 +267,17 @@ else if(report_id==51){
   Serial.println(song_name);
   
 }
+//reports with id 4 are notifications
+else if(report_id==52){  
+  String notification_str(buffer+1,bufsize-1);
+  char notification_recieved[notification_str.length()+1];
+  notification_str.toCharArray(notification_recieved, sizeof(notification_recieved));
+  Serial.println(notification_recieved);
+  time_now2 = millis();
+  strcpy(notification,notification_recieved); 
   
+}
+//reports with id 1 are just requests to send back info (when device is connected so it gets volume value)  
 else if(report_id==49){
   usb_hid.sendReport(0, msg, msgsize);
 }
