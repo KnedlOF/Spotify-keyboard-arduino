@@ -41,6 +41,23 @@ float scroll_x = 0;
 float scroll_y = 0;
 int screen_width=128;
 
+//word counting
+  int split(String s, char delimiter, String words[]) {
+  int count = 0;
+  String word = "";
+  for (int i = 0; i < s.length(); i++) {
+    if (s[i] == delimiter) {
+      words[count++] = word;
+      word = "";
+    } else {
+      word += s[i];
+    }
+  }
+  words[count++] = word;
+  return count;
+  }
+
+  
 // Generic In Out with 16 bytes report (max)
 uint8_t const desc_hid_report[] =
 {
@@ -104,16 +121,57 @@ strcpy(prev_song, song);
   u8g2.clearBuffer();					// clear the internal memory
   u8g2.setFont(u8g2_font_fub14_tf);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall u8g2_font_tenthinnerguys_tr(8px)
   int song_lenght=u8g2.getStrWidth(song);
-  u8g2.drawStr((int)scroll_y,14,song);    
+  u8g2.drawUTF8((int)scroll_y,14,song);    
   u8g2.setFont(u8g2_font_fub11_tf);
   int artists_lenght=u8g2.getStrWidth(artists);	  
-  u8g2.drawStr((int)scroll_x,29,artists);
+  u8g2.drawUTF8((int)scroll_x,29,artists);
+  
+
 
 //notification will pop up for 2.5 seconds  
   if (strlen(notification)>0){  
-    u8g2.clearBuffer();   
+    u8g2.clearBuffer();       
     u8g2.setFont(u8g2_font_fub14_tf); 
-    u8g2.drawStr(10,14, notification);
+    int text_width=u8g2.getStrWidth(notification);
+    int x =(screen_width-text_width)/2;
+
+ 
+
+
+
+//for notifications longer than screen it will split the words in second line 
+    if (text_width>screen_width){
+      String firstLine="";
+      String secondLine="";
+      String words[20];
+      
+      
+      int numWords = split(notification, ' ', words);
+      firstLine+= "" + words[0];        
+      for (int i=1; i<numWords; i++){   
+        if (u8g2.getStrWidth(firstLine.c_str())<screen_width){  
+          if (i==1){
+          secondLine+= "" + words[i];  
+          }
+          else{
+          secondLine+= " " + words[i];  
+          }
+               
+        }   
+        else{
+          firstLine+= " " + words[i];
+        }              
+      }
+      int first_width=u8g2.getStrWidth(firstLine.c_str());
+      int second_width=u8g2.getStrWidth(secondLine.c_str());
+      int y =(screen_width-first_width)/2;
+      int z =(screen_width-second_width)/2;
+      u8g2.drawUTF8(y,14, firstLine.c_str()); 
+      u8g2.drawUTF8(z,30, secondLine.c_str());             
+    }
+    else {
+      u8g2.drawUTF8(x,14, notification);      
+    }
     
     
     if(millis() - time_now2 >= 2500){
@@ -125,6 +183,8 @@ strcpy(prev_song, song);
     
   u8g2.sendBuffer();
 
+
+  
   scroll_x-=0.5;
   scroll_y-=0.5;
   //for new song it will reset position of text to 0
