@@ -34,6 +34,7 @@ unsigned long time_now=0;
 unsigned long time_now1=0;
 unsigned long time_now2=0;
 unsigned long previousMillis=0;
+unsigned long volumetime=0;
 char artists[64]="";
 char song[64]="";
 char notification[64]="";
@@ -72,6 +73,7 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
 // the setup function runs once when you press reset or power the board
 void setup()
 {
+  
 
 //setting type of pin
 pinMode(like_btn, INPUT_PULLDOWN);  
@@ -99,7 +101,7 @@ attachInterrupt(digitalPinToInterrupt(next_btn), next, CHANGE);
   usb_hid.setReportCallback(get_report_callback, set_report_callback);
   usb_hid.begin();
   u8g2.begin();
-  Serial.begin(115200);
+ // Serial.begin(115200);
 
   // wait until device mounted
   while( !TinyUSBDevice.mounted() ) delay(1);
@@ -115,23 +117,81 @@ void loop()
 {
 char prev_artists[64];
 char prev_song[64];
+char percentage[10];
 strcpy(prev_artists, artists);
 strcpy(prev_song, song);
 
-  u8g2.clearBuffer();					// clear the internal memory
-  u8g2.setFont(u8g2_font_fub14_tf);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall u8g2_font_tenthinnerguys_tr(8px)
-  int song_lenght=u8g2.getStrWidth(song);
-  u8g2.drawUTF8((int)scroll_y,14,song);    
-  u8g2.setFont(u8g2_font_fub11_tf);
-  int artists_lenght=u8g2.getStrWidth(artists);	  
-  u8g2.drawUTF8((int)scroll_x,29,artists);
-  
+u8g2.setFont(u8g2_font_helvB14_te);  
+int song_lenght=u8g2.getStrWidth(song);
+u8g2.setFont(u8g2_font_helvB10_te);
+int artists_lenght=u8g2.getStrWidth(artists);
 
+int volumebar= (82*msg[6])/100;  
+
+
+
+//volume bar
+if (previous_msg[6]!=msg[6]){
+    u8g2.clearBuffer(); 
+    u8g2.drawRFrame(4, 4, 84, 24, 4);      
+    u8g2.drawBox(5, 5, volumebar, 22);
+    u8g2.setFont(u8g2_font_helvB18_te);
+    itoa(msg[6], percentage, 10);
+    if (msg[6]==100){
+    u8g2.drawUTF8(90,25,percentage);
+    }
+    else {
+    u8g2.drawUTF8(98,25,percentage);
+    }
+    volumetime=millis(); //to stay 1 sec on screen
+  }
+  
+else if (millis()-volumetime>=1000){
+  
+  scroll_x-=0.5;
+  scroll_y-=0.5;
+  //for new song it will reset position of text to 0
+  if (strcmp(prev_artists, artists)||strcmp(prev_song, song)) {
+    scroll_x = 0;
+    scroll_y = 0;
+  }
+
+  //  for scroll of text artists
+  if ((int)scroll_x==0-(artists_lenght-1)){
+  scroll_x=screen_width;
+  }
+
+  else if(artists_lenght-1<screen_width){
+  scroll_x=0;
+  } 
+
+  //for scroll of text song  
+  if ((int)scroll_y==0-(song_lenght-1)){
+  scroll_y=screen_width;
+  }
+
+  else if(song_lenght-1<screen_width){
+  scroll_y=0;
+  } 
+
+
+
+  u8g2.clearBuffer();	 
+  
+  u8g2.setFont(u8g2_font_helvB14_te);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall u8g2_font_tenthinnerguys_tr(8px)
+  u8g2.drawUTF8((int)scroll_y,14,song);    
+  u8g2.setFont(u8g2_font_helvB10_te);
+  u8g2.drawUTF8((int)scroll_x,29,artists);
+  	}
+	
+
+
+ 
 
 //notification will pop up for 2.5 seconds  
   if (strlen(notification)>0){  
     u8g2.clearBuffer();       
-    u8g2.setFont(u8g2_font_fub14_tf); 
+    u8g2.setFont(u8g2_font_helvB14_te); 
     int text_width=u8g2.getStrWidth(notification);
     int x =(screen_width-text_width)/2;
 
@@ -183,33 +243,6 @@ strcpy(prev_song, song);
     
   u8g2.sendBuffer();
 
-
-  
-  scroll_x-=0.5;
-  scroll_y-=0.5;
-  //for new song it will reset position of text to 0
-  if (strcmp(prev_artists, artists)||strcmp(prev_song, song)) {
-    scroll_x = 0;
-    scroll_y = 0;
-  }
-
-  //  for scroll of text artists
-  if ((int)scroll_x==0-(artists_lenght-1)){
-  scroll_x=screen_width;
-  }
-
-  else if(artists_lenght-1<screen_width){
-  scroll_x=0;
-  } 
-
-//for scroll of text song  
-  if ((int)scroll_y==0-(song_lenght-1)){
-  scroll_y=screen_width;
-  }
-
-  else if(song_lenght-1<screen_width){
-  scroll_y=0;
-  } 
 
 
 //for when millis overlaps, so there is no problems 
@@ -305,18 +338,18 @@ void set_report_callback(uint8_t report_id, hid_report_type_t report_type, uint8
 
 
   for (int i=0; i<bufsize;i++){
-  Serial.print(buffer[i]); 
-  Serial.print(" ");
+  // Serial.print(buffer[i]); 
+  // Serial.print(" ");
   }
 
-  Serial.println("");
+  // Serial.println("");
 //reports with id 2 are artists names
 if (report_id==50){
   String artist_str(buffer+1,bufsize-1);
   char artist_name[artist_str.length() + 1];
   artist_str.toCharArray(artist_name, sizeof(artist_name));
   strcpy(artists, artist_name);
-  Serial.println(artist_name);
+  // Serial.println(artist_name);
   }
 //reports with id 3 are track names
 else if(report_id==51){
@@ -324,7 +357,7 @@ else if(report_id==51){
   char song_name[song_str.length() + 1];
   song_str.toCharArray(song_name, sizeof(song_name));
   strcpy(song, song_name);
-  Serial.println(song_name);
+  // Serial.println(song_name);
   
 }
 //reports with id 4 are notifications
@@ -332,7 +365,7 @@ else if(report_id==52){
   String notification_str(buffer+1,bufsize-1);
   char notification_recieved[notification_str.length()+1];
   notification_str.toCharArray(notification_recieved, sizeof(notification_recieved));
-  Serial.println(notification_recieved);
+  // Serial.println(notification_recieved);
   time_now2 = millis();
   strcpy(notification,notification_recieved); 
   
